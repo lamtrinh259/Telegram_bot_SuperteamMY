@@ -6,10 +6,13 @@ from telegram import Update
 from telegram.error import Forbidden, TelegramError
 from telegram.ext import ContextTypes
 
+from ..auth import is_group_admin
 from ..runtime import get_runtime
 from ..utils import (
+    EXAMPLE_INTRO_TEXT,
     MUTED_PERMISSIONS,
     UNMUTED_PERMISSIONS,
+    build_intro_deeplink,
     build_reminder_text,
     build_welcome_text,
     display_name,
@@ -59,8 +62,9 @@ async def send_reminder_to_user(
     user_label: str,
     main_group_id: int,
     intro_chat_id: int,
+    intro_thread_id: int | None,
 ) -> None:
-    reminder_text = build_reminder_text(intro_chat_id)
+    reminder_text = build_reminder_text(intro_chat_id, intro_thread_id)
     dm_sent = False
     try:
         await context.bot.send_message(chat_id=user_id, text=reminder_text)
@@ -74,7 +78,8 @@ async def send_reminder_to_user(
         f"{mention_html(user_id, user_label)} reminder sent."
         if dm_sent
         else (
-            f"{mention_html(user_id, user_label)} please post your intro in #intro. "
+            f"{mention_html(user_id, user_label)} please post your intro in Intro. "
+            f"{_build_intro_short_link_note(intro_chat_id, intro_thread_id)}"
             "I could not DM you, so this is your in-group reminder."
         )
     )
@@ -103,19 +108,51 @@ async def handle_new_members(update: Update, context: ContextTypes.DEFAULT_TYPE)
             main_chat_id=runtime.config.main_group_id,
         )
 
-        if member.is_introduced:
+        is_privileged_member = user.id in runtime.config.admin_user_ids
+        if not is_privileged_member:
+            is_privileged_member = await is_group_admin(
+                context=context,
+                main_group_id=runtime.config.main_group_id,
+                user_id=user.id,
+            )
+
+        if member.is_introduced or is_privileged_member:
+            if is_privileged_member and not member.is_introduced:
+                runtime.repo.mark_introduced(
+                    user_id=user.id,
+                    username=user.username,
+                    first_name=user.first_name,
+                    intro_chat_id=runtime.config.intro_chat_id,
+                    intro_message_id=0,
+                )
             await unlock_member(context, runtime.config.main_group_id, user.id)
             continue
 
-        await lock_member(context, runtime.config.main_group_id, user.id)
+        if runtime.config.intro_is_topic_in_main:
+            # In forum-topic mode, global mute would also block posting in Intro topic.
+            # Keep user unmuted and enforce by deleting messages outside Intro.
+            await unlock_member(context, runtime.config.main_group_id, user.id)
+        else:
+            await lock_member(context, runtime.config.main_group_id, user.id)
 
         person = display_name(user.username, user.first_name, user.id)
-        welcome_text = build_welcome_text(runtime.config.intro_chat_id)
+        welcome_text = build_welcome_text(
+            runtime.config.intro_chat_id,
+            runtime.config.intro_thread_id,
+        )
         await context.bot.send_message(
             chat_id=runtime.config.main_group_id,
             text=f"{mention_html(user.id, person)}\n\n{welcome_text}",
             parse_mode="HTML",
             disable_web_page_preview=True,
+        )
+
+        await send_intro_example_prompt(
+            context=context,
+            user_id=user.id,
+            user_label=person,
+            intro_chat_id=runtime.config.intro_chat_id,
+            intro_thread_id=runtime.config.intro_thread_id,
         )
 
         try:
@@ -132,3 +169,32 @@ async def handle_new_members(update: Update, context: ContextTypes.DEFAULT_TYPE)
             )
         except TelegramError:
             logger.exception("failed to send onboarding DM user_id=%s", user.id)
+
+
+async def send_intro_example_prompt(
+    context: ContextTypes.DEFAULT_TYPE,
+    user_id: int,
+    user_label: str,
+    intro_chat_id: int,
+    intro_thread_id: int | None,
+) -> None:
+    try:
+        await context.bot.send_message(
+            chat_id=intro_chat_id,
+            message_thread_id=intro_thread_id,
+            text=(
+                f"{mention_html(user_id, user_label)} please post your intro here.\n\n"
+                f"Example intro:\n\n{EXAMPLE_INTRO_TEXT}"
+            ),
+            parse_mode="HTML",
+            disable_web_page_preview=True,
+        )
+    except TelegramError:
+        logger.exception("failed to send intro example prompt user_id=%s", user_id)
+
+
+def _build_intro_short_link_note(intro_chat_id: int, intro_thread_id: int | None) -> str:
+    link = build_intro_deeplink(intro_chat_id, intro_thread_id)
+    if not link:
+        return ""
+    return f"Open Intro: {link}. "

@@ -19,7 +19,7 @@ EXAMPLE_INTRO_TEXT = (
 )
 
 INTRO_FORMAT_PROMPT = (
-    "Please introduce yourself in #intro using this structure:\n\n"
+    "Please introduce yourself in Intro using this structure:\n\n"
     "1) Who are you & what do you do?\n"
     "2) Where are you based?\n"
     "3) One fun fact about you\n"
@@ -83,17 +83,61 @@ def display_name(username: str | None, first_name: str | None, user_id: int) -> 
     return str(user_id)
 
 
-def build_welcome_text(intro_chat_id: int) -> str:
+def build_intro_deeplink(intro_chat_id: int, intro_thread_id: int | None) -> str | None:
+    if intro_thread_id is None:
+        return None
+    abs_chat_id = str(abs(intro_chat_id))
+    internal_chat_id = abs_chat_id[3:] if abs_chat_id.startswith("100") else abs_chat_id
+    return f"https://t.me/c/{internal_chat_id}/{intro_thread_id}"
+
+
+def format_intro_location(intro_chat_id: int, intro_thread_id: int | None) -> str:
+    if intro_thread_id is not None:
+        return f"#intro topic (chat ID: {intro_chat_id}, topic ID: {intro_thread_id})"
+    return f"#intro chat (chat ID: {intro_chat_id})"
+
+
+def build_welcome_text(intro_chat_id: int, intro_thread_id: int | None) -> str:
+    intro_link = build_intro_deeplink(intro_chat_id, intro_thread_id)
+    if intro_link:
+        return (
+            "Welcome to Superteam MY. You are temporarily limited in the main group until your intro is done.\n\n"
+            "Post your introduction in the Intro topic to unlock access.\n\n"
+            f"Open Intro directly: {intro_link}\n"
+            "Please introduce yourself in Intro using this structure:\n\n"
+            "1) Who are you & what do you do?\n"
+            "2) Where are you based?\n"
+            "3) One fun fact about you\n"
+            "4) How are you looking to contribute to Superteam MY?\n\n"
+            "You can use /example to see a sample intro."
+        )
+
+    intro_location = format_intro_location(intro_chat_id, intro_thread_id)
     return (
-        "Welcome to Superteam MY. You are temporarily read-only in the main group until your intro is done.\n\n"
-        f"Post your intro in #intro (chat ID: {intro_chat_id}) to unlock access.\n\n"
+        "Welcome to Superteam MY. You are temporarily limited in the main group until your intro is done.\n\n"
+        f"Post your intro in {intro_location} to unlock access.\n\n"
         f"{INTRO_FORMAT_PROMPT}"
     )
 
 
-def build_reminder_text(intro_chat_id: int) -> str:
+def build_reminder_text(intro_chat_id: int, intro_thread_id: int | None) -> str:
+    intro_link = build_intro_deeplink(intro_chat_id, intro_thread_id)
+    if intro_link:
+        return (
+            "Reminder: your main-group access is still locked.\n"
+            "Please post your introduction in the Intro topic.\n\n"
+            f"Open Intro directly: {intro_link}\n"
+            "Please introduce yourself in Intro using this structure:\n\n"
+            "1) Who are you & what do you do?\n"
+            "2) Where are you based?\n"
+            "3) One fun fact about you\n"
+            "4) How are you looking to contribute to Superteam MY?\n\n"
+            "You can use /example to see a sample intro."
+        )
+
+    intro_location = format_intro_location(intro_chat_id, intro_thread_id)
     return (
         "Reminder: your main-group access is still locked.\n"
-        f"Please post your intro in #intro (chat ID: {intro_chat_id}).\n\n"
+        f"Please post your intro in {intro_location}.\n\n"
         f"{INTRO_FORMAT_PROMPT}"
     )

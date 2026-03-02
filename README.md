@@ -20,6 +20,9 @@ Telegram bot for the **Build a Telegram Intro Gatekeeper Bot for Superteam** cha
   - `/remind [user_id]`
   - `/approve [user_id]` (optional/manual)
   - `/reject [user_id]` (optional/manual)
+  - `/gate [user_id]` / `/ungate [user_id]` (fast test controls)
+  - `/reset [user_id]` / `/wipe [user_id]` (state reset tools)
+  - `/diag` / `/adminhelp` (debug and command reference)
 
 ## Architecture
 
@@ -58,6 +61,7 @@ Copy `.env.example` to `.env` and set values:
 - `BOT_TOKEN` (required)
 - `MAIN_GROUP_ID` (required, e.g. `-100...`)
 - `INTRO_CHAT_ID` (required, e.g. `-100...`)
+- `INTRO_THREAD_ID` (optional, required only if `#intro` is a topic in a forum group)
 - `ADMIN_USER_IDS` (comma-separated Telegram user IDs)
 - `DATABASE_PATH` (default `data/bot.sqlite3`)
 - `MIN_INTRO_WORDS` (default `20`)
@@ -65,6 +69,14 @@ Copy `.env.example` to `.env` and set values:
 - `REMINDER_COOLDOWN_MINUTES` (default `30`)
 - `AUTO_REMINDER_HOURS` (default `0`, disabled)
 - `LOG_LEVEL` (default `INFO`)
+
+## Quick Troubleshooting
+
+- If bot replies with `chat ID: -1001234567891`, you are still using example values from `.env.example`.
+- If `#intro` is a separate chat/channel: set `INTRO_CHAT_ID` to that chat ID and leave `INTRO_THREAD_ID` empty.
+- If `#intro` is a topic in the same forum group: set `INTRO_CHAT_ID=MAIN_GROUP_ID` and set `INTRO_THREAD_ID`.
+- Use `/ids` in each chat/topic to copy real `chat_id` and `message_thread_id`, and add your own `user_id` to `ADMIN_USER_IDS`.
+- Admins should not be gated; if you are an admin and still see lock behavior, restart bot after pulling latest changes so admin-bypass logic is active.
 
 ## Local Run (Without Docker)
 
@@ -103,6 +115,12 @@ docker compose logs -f bot
 5. Bot validates intro message.
 6. Bot marks user as introduced + unlocks main-group access.
 
+### Forum Topic Mode Note
+
+If `INTRO_CHAT_ID` equals `MAIN_GROUP_ID` and `INTRO_THREAD_ID` is set, Telegram applies permissions at chat level, not per-topic.  
+So the bot uses delete-and-remind enforcement outside Intro topic (instead of global mute) to ensure pending users can still post in Intro.
+For this to work, disable bot privacy mode in BotFather (`/setprivacy -> Disable`) so the bot can receive normal group messages.
+
 ## Validation Logic (Flexible)
 
 - Valid if word count >= `MIN_INTRO_WORDS`.
@@ -114,11 +132,18 @@ docker compose logs -f bot
 
 - `/start` - onboarding reminder text
 - `/example` - sample intro format required by the bounty
+- `/ids` - print current `chat_id`, `message_thread_id` (if in topic), and your `user_id`
 - `/pending` - list pending members (admin)
 - `/status [user_id]` - bot summary or per-user state (admin)
 - `/remind [user_id]` - send reminders (admin)
 - `/approve [user_id]` - manual override to introduced (admin)
 - `/reject [user_id]` - keep user gated + reminder (admin)
+- `/gate [user_id]` - force user into pending state (admin)
+- `/ungate [user_id]` - force user into introduced state (admin)
+- `/reset [user_id]` - reset user to pending and clear intro/reminder state (admin)
+- `/wipe [user_id]` - delete user row from DB and clear restrictions (admin)
+- `/diag` - print privacy-mode + permission diagnostics (admin)
+- `/adminhelp` - list all admin/testing commands
 
 ## Testing
 
@@ -141,5 +166,4 @@ python -m unittest discover -s tests
 - Show onboarding message and `/example` output.
 - Show intro message in `#intro` -> automatic unlock.
 - Show fallback behavior when DM is blocked.
-- Show `/pending`, `/status`, `/remind`.
-
+- Show `/pending`, `/status`, `/remind`, `/diag`.

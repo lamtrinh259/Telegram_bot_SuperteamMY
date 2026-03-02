@@ -165,12 +165,22 @@ class MemberRepository:
                 SET status = 'pending',
                     intro_chat_id = NULL,
                     intro_message_id = NULL,
-                    introduced_at = NULL
+                    introduced_at = NULL,
+                    last_reminded_at = NULL
                 WHERE user_id = ?
                 """,
                 (user_id,),
             )
             self._conn.commit()
+
+    def delete_member(self, user_id: int) -> bool:
+        with self._lock:
+            cursor = self._conn.execute(
+                "DELETE FROM members WHERE user_id = ?",
+                (user_id,),
+            )
+            self._conn.commit()
+        return cursor.rowcount > 0
 
     def set_last_reminded(self, user_id: int) -> None:
         with self._lock:
