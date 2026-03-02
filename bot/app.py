@@ -8,17 +8,13 @@ from telegram.ext import Application, ApplicationBuilder, CommandHandler, Contex
 from .config import Config
 from .database import MemberRepository
 from .handlers.admin import (
-    adminhelp_command,
     approve_command,
     diag_command,
-    gate_command,
     pending_command,
     reject_command,
     remind_command,
     status_command,
     reset_command,
-    ungate_command,
-    wipe_command,
 )
 from .handlers.intro import (
     example_command,
@@ -91,18 +87,13 @@ def build_application(config: Config) -> Application:
             [
                 BotCommand("start", "Get intro instructions"),
                 BotCommand("example", "Show an example intro"),
-                BotCommand("ids", "Show current chat/user IDs"),
                 BotCommand("pending", "List pending members (admin)"),
                 BotCommand("status", "Bot or member status (admin)"),
                 BotCommand("remind", "Send reminder(s) (admin)"),
                 BotCommand("approve", "Manually approve a member (admin)"),
                 BotCommand("reject", "Keep member gated (admin)"),
-                BotCommand("gate", "Force user to pending (admin)"),
-                BotCommand("ungate", "Force user to introduced (admin)"),
                 BotCommand("reset", "Reset user intro state (admin)"),
-                BotCommand("wipe", "Delete user state from DB (admin)"),
                 BotCommand("diag", "Show bot diagnostics (admin)"),
-                BotCommand("adminhelp", "List admin test commands"),
             ]
         )
 
@@ -182,20 +173,19 @@ def build_application(config: Config) -> Application:
     )
     application.add_handler(MessageHandler(intro_filters, handle_intro_message))
 
+    # -- user commands --
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("example", example_command))
-    application.add_handler(CommandHandler("ids", ids_command))
+    application.add_handler(CommandHandler("ids", ids_command))       # hidden debug helper
+
+    # -- admin commands --
     application.add_handler(CommandHandler("pending", pending_command))
     application.add_handler(CommandHandler("status", status_command))
     application.add_handler(CommandHandler("remind", remind_command))
     application.add_handler(CommandHandler("approve", approve_command))
     application.add_handler(CommandHandler("reject", reject_command))
-    application.add_handler(CommandHandler("gate", gate_command))
-    application.add_handler(CommandHandler("ungate", ungate_command))
     application.add_handler(CommandHandler("reset", reset_command))
-    application.add_handler(CommandHandler("wipe", wipe_command))
     application.add_handler(CommandHandler("diag", diag_command))
-    application.add_handler(CommandHandler("adminhelp", adminhelp_command))
 
     application.add_error_handler(error_handler)
     return application
