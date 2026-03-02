@@ -11,6 +11,7 @@ from ..auth import is_admin
 from ..runtime import get_runtime
 from ..utils import (
     EXAMPLE_INTRO_TEXT,
+    build_intro_deeplink,
     build_reminder_text,
     display_name,
     extract_message_text,
@@ -37,6 +38,18 @@ async def handle_intro_message(update: Update, context: ContextTypes.DEFAULT_TYP
 
     if not is_intro:
         logger.debug(f"Not an intro message, returning")
+        return
+
+    # Skip validation for users who are already introduced — let them
+    # chat freely in the intro channel without triggering the bot.
+    member = runtime.repo.get_member(user.id)
+    if member is not None and member.is_introduced:
+        logger.debug(f"User {user.id} already introduced, skipping validation")
+        return
+
+    # Also skip for admins — they don't need an intro.
+    if await is_admin(update, context, runtime):
+        logger.debug(f"User {user.id} is admin, skipping validation")
         return
 
     text = extract_message_text(message)
@@ -73,10 +86,17 @@ async def handle_intro_message(update: Update, context: ContextTypes.DEFAULT_TYP
     user_label = display_name(user.username, user.first_name, user.id)
     if unlocked:
         await message.reply_text("Intro accepted. You are now unlocked in the main group.")
+        intro_link = build_intro_deeplink(
+            runtime.config.intro_chat_id, runtime.config.intro_thread_id
+        )
+        if intro_link:
+            intro_ref = f'<a href="{intro_link}">#Intro</a>'
+        else:
+            intro_ref = "#Intro"
         await context.bot.send_message(
             chat_id=runtime.config.main_group_id,
             text=(
-                f"{mention_html(user.id, user_label)} intro accepted in #intro. "
+                f"{mention_html(user.id, user_label)} intro accepted in {intro_ref}. "
                 "Main-group access unlocked."
             ),
             parse_mode="HTML",

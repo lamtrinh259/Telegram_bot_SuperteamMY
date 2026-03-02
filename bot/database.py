@@ -198,6 +198,15 @@ class MemberRepository:
             ).fetchone()
         return self._row_to_member(row) if row else None
 
+    def get_member_by_username(self, username: str) -> MemberState | None:
+        """Look up a member by their Telegram username (case-insensitive)."""
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT * FROM members WHERE LOWER(username) = LOWER(?)",
+                (username,),
+            ).fetchone()
+        return self._row_to_member(row) if row else None
+
     def list_pending(self, limit: int = 100) -> list[MemberState]:
         with self._lock:
             rows = self._conn.execute(

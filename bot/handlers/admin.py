@@ -424,14 +424,21 @@ async def _privacy_warning_if_needed(
 
 
 def _resolve_target_user_id(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int | None:
-    del context
     message = update.effective_message
     if message is None:
         return None
 
-    if message.reply_to_message and message.reply_to_message.from_user:
-        return message.reply_to_message.from_user.id
+    # In forum topics, every message has reply_to_message pointing to the
+    # topic-creation service message.  We must ignore that auto-reply and
+    # only use reply_to_message when the user explicitly replied to another
+    # user's real message.
+    reply = message.reply_to_message
+    if reply and reply.from_user:
+        is_service_msg = getattr(reply, "forum_topic_created", None) is not None
+        if not is_service_msg:
+            return reply.from_user.id
 
+    # Fall through to parsing the command argument.
     if not update.message or not update.message.text:
         return None
 
@@ -440,7 +447,19 @@ def _resolve_target_user_id(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         return None
 
     raw = parts[1].strip()
+
+    # 1) Try as integer user_id
     try:
         return int(raw)
     except ValueError:
-        return None
+        pass
+
+    # 2) Try as @username — look up in the members DB
+    username = raw.lstrip("@")
+    if username:
+        runtime = get_runtime(context)
+        member = runtime.repo.get_member_by_username(username)
+        if member is not None:
+            return member.user_id
+
+    return None
