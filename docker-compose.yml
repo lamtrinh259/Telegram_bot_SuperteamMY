@@ -1,0 +1,9 @@
+services:
+  bot:
+    build: .
+    container_name: superteammy-gatekeeper-bot
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
