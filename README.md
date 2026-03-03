@@ -4,6 +4,8 @@
 
 Production-ready introduction gatekeeper bot for Superteam MY with flexible NLP validation, rate limiting, forum-topic support, graceful rejoin handling, Docker, and tests.
 
+Demo video: [https://youtu.be/BLc76T6Co6k](https://youtu.be/BLc76T6Co6k)
+
 ## What It Does
 
 - Gates new members in the main group until they introduce themselves in the dedicated `#intro` channel/topic.
