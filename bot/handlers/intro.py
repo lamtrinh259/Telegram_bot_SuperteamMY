@@ -194,25 +194,49 @@ async def handle_main_group_message(update: Update, context: ContextTypes.DEFAUL
         return
 
     logger.info("Deleting message from pending user user_id=%s", user.id)
+    deleted = False
     try:
         await message.delete()
+        deleted = True
     except Forbidden:
         logger.warning("cannot delete message for pending user user_id=%s", user.id)
         await _maybe_notify_delete_permission_issue(context, message.chat_id)
     except TelegramError:
         logger.exception("failed to delete message for pending user user_id=%s", user.id)
 
+    user_label = display_name(user.username, user.first_name, user.id)
+
     if should_remind(member.last_reminded_at, runtime.config.reminder_cooldown_minutes):
+        # Full reminder: DM (if possible) + detailed in-chat notification.
         await send_reminder_to_user(
             context=context,
             user_id=user.id,
-            user_label=display_name(user.username, user.first_name, user.id),
+            user_label=user_label,
             main_group_id=runtime.config.main_group_id,
             intro_chat_id=runtime.config.intro_chat_id,
             intro_thread_id=runtime.config.intro_thread_id,
             notify_chat_id=message.chat_id,
         )
         runtime.repo.set_last_reminded(user.id)
+    elif deleted:
+        # Between full reminders, always send a brief in-chat note so
+        # the user understands why their message disappeared.
+        intro_link = build_intro_deeplink(
+            runtime.config.intro_chat_id, runtime.config.intro_thread_id,
+        )
+        if intro_link:
+            intro_ref = f'<a href="{intro_link}">#Intro</a>'
+        else:
+            intro_ref = "#Intro"
+        await context.bot.send_message(
+            chat_id=message.chat_id,
+            text=(
+                f"🚫 {mention_html(user.id, user_label)}, please complete your "
+                f"introduction in {intro_ref} before posting here."
+            ),
+            parse_mode="HTML",
+            disable_web_page_preview=True,
+        )
 
 
 async def example_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
