@@ -1,6 +1,8 @@
 # Superteam MY Intro Gatekeeper Bot
 
-Telegram bot for the **Build a Telegram Intro Gatekeeper Bot for Superteam** challenge.
+**Submission for Superteam Earn Bounty** — Build a Telegram Intro Gatekeeper Bot for Superteam
+
+Production-ready introduction gatekeeper bot for Superteam MY with flexible NLP validation, rate limiting, forum-topic support, graceful rejoin handling, Docker, and tests.
 
 ## What It Does
 
