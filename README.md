@@ -11,7 +11,8 @@ Telegram bot for the **Build a Telegram Intro Gatekeeper Bot for Superteam** cha
   - Accepts medium-length intros when self/role signals are present (>= `MIN_INTRO_WORDS_WITH_SIGNALS`).
   - Rejects copy-paste of the example intro using trigram-based similarity detection.
 - Supports DM onboarding, with automatic in-group fallback when DMs are blocked.
-- Built-in anti-spam rate limiting for non-admin members (default: 5 messages/60s -> 30-minute mute).
+- Pending users who spam outside Intro are temporarily muted (default: 5 messages in 60 seconds -> 30-minute mute).
+- Introduced non-admin users are also rate-limited and temporarily muted on spam bursts.
 - Handles key edge cases:
   - Rejoin behavior (already introduced users are not re-gated).
   - Persistence across bot restarts (SQLite).
@@ -43,7 +44,9 @@ Dockerfile
 docker-compose.yml
 .env.example
 tests/
-└── test_validation.py
+├── test_validation.py
+├── test_database.py
+└── test_handler_smoke.py
 ```
 
 ## Bot Permissions Required
@@ -73,7 +76,7 @@ Copy `.env.example` to `.env` and set values:
 | `MIN_INTRO_WORDS_WITH_SIGNALS` | No | `12` | Min words when self+role signals present |
 | `REMINDER_COOLDOWN_MINUTES` | No | `30` | Cooldown between reminder DMs per user |
 | `AUTO_REMINDER_HOURS` | No | `0` (disabled) | Interval for automatic batch reminders |
-| `RATE_LIMIT_MAX_MESSAGES` | No | `5` | Max messages allowed within rate-limit window |
+| `RATE_LIMIT_MAX_MESSAGES` | No | `5` | Mute threshold within rate-limit window (`>=` this count) |
 | `RATE_LIMIT_WINDOW_SECONDS` | No | `60` | Rate-limit sliding window size (seconds) |
 | `RATE_LIMIT_MUTE_MINUTES` | No | `30` | Temporary mute duration when limit is exceeded |
 | `LOG_LEVEL` | No | `INFO` | Logging level (DEBUG, INFO, WARNING, etc.) |
@@ -135,12 +138,26 @@ The bot uses flexible NLP-style validation (no rigid templates):
 8. If a pending user tries to post outside Intro, the bot deletes the message and sends a cooldown-limited reminder.
 9. If a non-admin user exceeds the message rate limit outside Intro, the bot temporarily mutes them and auto-unmutes after the configured duration.
 
+## Muting Logic
+
+- Threshold: mute is triggered when a user sends `RATE_LIMIT_MAX_MESSAGES` or more messages within `RATE_LIMIT_WINDOW_SECONDS`.
+- Pending users:
+  - Applies when they post outside Intro (the same path that deletes/reminds).
+  - They are muted for `RATE_LIMIT_MUTE_MINUTES`.
+  - In forum-topic mode, they are auto-unmuted after timer so onboarding can continue.
+- Introduced users:
+  - Applies to non-admin users posting outside Intro in the main supergroup.
+  - They are muted for `RATE_LIMIT_MUTE_MINUTES` and auto-unmuted via job queue.
+- Admin users are exempt.
+- Rate-limit counters are in-memory and reset on bot restart.
+
 ### Forum Topic Mode Details
 
 When `INTRO_CHAT_ID` equals `MAIN_GROUP_ID` and `INTRO_THREAD_ID` is set:
 
 - Telegram applies permissions at the chat level, not per-topic. Muting a user would block them from posting in the Intro topic too.
 - The bot uses **delete-and-remind** enforcement: pending users' messages outside the Intro topic are deleted, and the user receives a DM reminder.
+- If a pending user repeatedly spams outside Intro, the bot temporarily mutes them based on the configured rate-limit threshold.
 - **Privacy mode must be OFF** (BotFather: `/setprivacy` -> Disable) so the bot can intercept non-command messages.
 - On startup, the bot clears stale mute restrictions for all pending users (in case the bot was previously running in mute mode).
 
@@ -184,8 +201,10 @@ Run unit tests:
 python -m unittest discover -s tests
 ```
 
-Tests cover intro validation logic including anti-copy-paste detection.
-They also cover database lifecycle behavior (join/introduce/rejoin/pending reset) and handler helper smoke checks.
+Tests cover:
+- Intro validation logic (including anti-copy-paste detection and copied-bot-text rejection).
+- Database lifecycle behavior (join/introduce/rejoin/pending reset).
+- Handler helper logic (target resolution, reminder cooldown, topic matching, rate-limit threshold helper).
 
 ## Quick Troubleshooting
 
@@ -196,6 +215,7 @@ They also cover database lifecycle behavior (join/introduce/rejoin/pending reset
 | Bot can't delete messages | Grant the bot "Delete messages" admin permission |
 | Bot can't restrict members | Grant the bot "Restrict members" admin permission |
 | Users are muted too aggressively | Increase `RATE_LIMIT_MAX_MESSAGES` or `RATE_LIMIT_WINDOW_SECONDS` |
+| Pending users are not muted in General | Ensure bot can read non-command messages (privacy mode OFF) and has `Restrict members` |
 | `/reject @username` targets wrong user | Ensure the user has sent at least one message so their username is in the database |
 | Admin is being gated | Add your user ID to `ADMIN_USER_IDS` in `.env` and restart |
 
@@ -218,6 +238,7 @@ Use `/ids` in any chat or topic to find the real `chat_id`, `message_thread_id`,
 - [ ] Acceptance announcement shows clickable `#intro` link
 - [ ] Already-introduced user chats freely in `#intro` without validation prompts
 - [ ] Pending user's message in General or other non-Intro topics is deleted with reminder
-- [ ] Rate limit triggers at configured threshold and auto-unmutes correctly
+- [ ] Pending spam outside Intro triggers temporary mute and later auto-unmute
+- [ ] Introduced user spam triggers temporary mute and later auto-unmute
 - [ ] `/pending`, `/status`, `/approve`, `/reject`, `/reset`, `/diag` work correctly
 - [ ] Auto-reminders fire on schedule (if configured)
