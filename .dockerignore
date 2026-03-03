@@ -1,0 +1,14 @@
+.git
+.gitignore
+.DS_Store
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.venv/
+.env
+.envrc
+data/
+tests/
+telegram-bot/

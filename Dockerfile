@@ -13,4 +13,7 @@ COPY main.py ./main.py
 
 RUN mkdir -p /app/data
 
+# Switch to non-root user for better security to run the app
+RUN useradd -m -u 1000 appuser
+USER appuser
 CMD ["python", "main.py"]
