@@ -173,15 +173,6 @@ class MemberRepository:
             )
             self._conn.commit()
 
-    def delete_member(self, user_id: int) -> bool:
-        with self._lock:
-            cursor = self._conn.execute(
-                "DELETE FROM members WHERE user_id = ?",
-                (user_id,),
-            )
-            self._conn.commit()
-        return cursor.rowcount > 0
-
     def set_last_reminded(self, user_id: int) -> None:
         with self._lock:
             self._conn.execute(

@@ -17,10 +17,29 @@ def _parse_admin_ids(value: str | None) -> set[int]:
     return ids
 
 
+def _parse_chat_ids(value: str | None) -> tuple[int, ...]:
+    if not value:
+        return tuple()
+
+    ids: list[int] = []
+    seen: set[int] = set()
+    for raw in value.split(","):
+        raw = raw.strip()
+        if not raw:
+            continue
+        chat_id = int(raw)
+        if chat_id in seen:
+            continue
+        ids.append(chat_id)
+        seen.add(chat_id)
+    return tuple(ids)
+
+
 @dataclass(frozen=True)
 class Config:
     bot_token: str
     main_group_id: int
+    protected_chat_ids: tuple[int, ...]
     intro_chat_id: int
     intro_thread_id: int | None
     database_path: Path
@@ -51,6 +70,10 @@ class Config:
 
         main_group_id = int(main_group)
         intro_chat_id = int(intro_chat)
+        parsed_protected_chat_ids = _parse_chat_ids(os.getenv("PROTECTED_CHAT_IDS"))
+        protected_chat_ids = (main_group_id, *tuple(
+            chat_id for chat_id in parsed_protected_chat_ids if chat_id != main_group_id
+        ))
 
         raw_intro_thread_id = os.getenv("INTRO_THREAD_ID", "").strip()
         intro_thread_id = int(raw_intro_thread_id) if raw_intro_thread_id else None
@@ -60,6 +83,7 @@ class Config:
         return cls(
             bot_token=token,
             main_group_id=main_group_id,
+            protected_chat_ids=protected_chat_ids,
             intro_chat_id=intro_chat_id,
             intro_thread_id=intro_thread_id,
             database_path=db_path,

@@ -5,6 +5,7 @@ Telegram bot for the **Build a Telegram Intro Gatekeeper Bot for Superteam** cha
 ## What It Does
 
 - Gates new members in the main group until they introduce themselves in the dedicated `#intro` channel/topic.
+- Enforces pending-user reminders in configured protected chats/topics (not only `Main`/`General`).
 - Uses flexible NLP validation (not strict templates):
   - Accepts long-enough intros directly (>= `MIN_INTRO_WORDS`).
   - Accepts medium-length intros when self/role signals are present (>= `MIN_INTRO_WORDS_WITH_SIGNALS`).
@@ -16,7 +17,7 @@ Telegram bot for the **Build a Telegram Intro Gatekeeper Bot for Superteam** cha
   - Intro in wrong place (reminder/redirection).
   - Already-introduced users can chat freely in `#intro` without re-triggering validation.
   - Admins are auto-recognized and never gated.
-- Clickable `#intro` deep link in acceptance announcements (forum-topic mode).
+- Dynamic clickable `#intro` deep link in welcome/reminder/acceptance messages (forum-topic mode).
 - Admin utilities for managing member states (see [Commands](#commands)).
 
 ## Architecture
@@ -64,6 +65,7 @@ Copy `.env.example` to `.env` and set values:
 | `MAIN_GROUP_ID` | Yes | — | Chat ID of the main group (e.g. `-100...`) |
 | `INTRO_CHAT_ID` | Yes | — | Chat ID where intros are posted |
 | `INTRO_THREAD_ID` | No | — | Topic ID if `#intro` is a forum topic |
+| `PROTECTED_CHAT_IDS` | No | — | Comma-separated extra chat IDs where pending-user messages are deleted/reminded (main group is always included) |
 | `ADMIN_USER_IDS` | No | — | Comma-separated Telegram user IDs |
 | `DATABASE_PATH` | No | `data/bot.sqlite3` | Path to SQLite database |
 | `MIN_INTRO_WORDS` | No | `20` | Min words for unconditional acceptance |
@@ -76,6 +78,7 @@ Copy `.env.example` to `.env` and set values:
 
 - **Separate intro chat:** Set `INTRO_CHAT_ID` to a different chat than `MAIN_GROUP_ID`. Leave `INTRO_THREAD_ID` empty. The bot mutes pending users in the main group.
 - **Forum topic mode:** Set `INTRO_CHAT_ID` = `MAIN_GROUP_ID` and set `INTRO_THREAD_ID` to the topic ID. The bot uses delete-and-remind enforcement (instead of global mute) so pending users can still post in the Intro topic.
+- **Extra enforcement chats (optional):** Set `PROTECTED_CHAT_IDS` to additional chat IDs where pending users should be reminded if they post before intro completion.
 
 ## Commands
 
@@ -126,7 +129,7 @@ The bot uses flexible NLP-style validation (no rigid templates):
 5. User posts intro in `#intro`.
 6. Bot validates intro text (length, signals, anti-copy-paste).
 7. On acceptance: marks user as "introduced", unlocks main-group access, posts announcement with clickable `#intro` link.
-8. If pending user tries to post in the main group (outside Intro), the bot deletes the message and sends a cooldown-limited reminder.
+8. If a pending user tries to post in any protected chat (outside Intro), the bot deletes the message and sends a cooldown-limited reminder.
 
 ### Forum Topic Mode Details
 
@@ -136,6 +139,12 @@ When `INTRO_CHAT_ID` equals `MAIN_GROUP_ID` and `INTRO_THREAD_ID` is set:
 - The bot uses **delete-and-remind** enforcement: pending users' messages outside the Intro topic are deleted, and the user receives a DM reminder.
 - **Privacy mode must be OFF** (BotFather: `/setprivacy` -> Disable) so the bot can intercept non-command messages.
 - On startup, the bot clears stale mute restrictions for all pending users (in case the bot was previously running in mute mode).
+
+## Recommended Telegram Group Settings
+
+- Set your group history visibility so new members **cannot read old messages** before onboarding. This reduces copy-paste intros from previous accepted examples.
+- Keep Intro instructions pinned in the Intro topic.
+- The bot's Intro deep link is generated dynamically from `INTRO_CHAT_ID` + `INTRO_THREAD_ID`, so keep those IDs accurate in `.env`.
 
 ## Local Run (Without Docker)
 
@@ -172,6 +181,7 @@ python -m unittest discover -s tests
 ```
 
 Tests cover intro validation logic including anti-copy-paste detection.
+They also cover database lifecycle behavior (join/introduce/rejoin/pending reset) and handler helper smoke checks.
 
 ## Quick Troubleshooting
 
@@ -181,6 +191,7 @@ Tests cover intro validation logic including anti-copy-paste detection.
 | Bot doesn't validate intros in Intro topic | Disable privacy mode in BotFather (`/setprivacy` -> Disable) and restart |
 | Bot can't delete messages | Grant the bot "Delete messages" admin permission |
 | Bot can't restrict members | Grant the bot "Restrict members" admin permission |
+| Pending users are not enforced in another chat | Add that chat ID to `PROTECTED_CHAT_IDS` and restart |
 | `/reject @username` targets wrong user | Ensure the user has sent at least one message so their username is in the database |
 | Admin is being gated | Add your user ID to `ADMIN_USER_IDS` in `.env` and restart |
 

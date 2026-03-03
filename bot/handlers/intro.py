@@ -8,6 +8,7 @@ from telegram.error import Forbidden, TelegramError
 from telegram.ext import ContextTypes
 
 from ..auth import is_admin
+from ..handler_helpers import build_progress_hint, is_intro_message, should_remind
 from ..runtime import get_runtime
 from ..utils import (
     EXAMPLE_INTRO_TEXT,
@@ -31,25 +32,40 @@ async def handle_intro_message(update: Update, context: ContextTypes.DEFAULT_TYP
     if message is None or user is None or user.is_bot:
         return
 
-    logger.debug(f"Intro handler called: chat_id={message.chat_id}, thread_id={message.message_thread_id}, user_id={user.id}")
+    logger.debug(
+        "Intro handler called: chat_id=%s, thread_id=%s, user_id=%s",
+        message.chat_id,
+        message.message_thread_id,
+        user.id,
+    )
 
-    is_intro = _is_intro_message(message.chat_id, message.message_thread_id, runtime)
-    logger.debug(f"_is_intro_message returned: {is_intro}, intro_chat_id={runtime.config.intro_chat_id}, intro_thread_id={runtime.config.intro_thread_id}")
+    is_intro = is_intro_message(
+        chat_id=message.chat_id,
+        message_thread_id=message.message_thread_id,
+        intro_chat_id=runtime.config.intro_chat_id,
+        intro_thread_id=runtime.config.intro_thread_id,
+    )
+    logger.debug(
+        "_is_intro_message returned: %s, intro_chat_id=%s, intro_thread_id=%s",
+        is_intro,
+        runtime.config.intro_chat_id,
+        runtime.config.intro_thread_id,
+    )
 
     if not is_intro:
-        logger.debug(f"Not an intro message, returning")
+        logger.debug("Not an intro message, returning")
         return
 
     # Skip validation for users who are already introduced — let them
     # chat freely in the intro channel without triggering the bot.
     member = runtime.repo.get_member(user.id)
     if member is not None and member.is_introduced:
-        logger.debug(f"User {user.id} already introduced, skipping validation")
+        logger.debug("User %s already introduced, skipping validation", user.id)
         return
 
     # Also skip for admins — they don't need an intro.
     if await is_admin(update, context, runtime):
-        logger.debug(f"User {user.id} is admin, skipping validation")
+        logger.debug("User %s is admin, skipping validation", user.id)
         return
 
     text = extract_message_text(message)
@@ -59,18 +75,28 @@ async def handle_intro_message(update: Update, context: ContextTypes.DEFAULT_TYP
         min_words_with_signals=runtime.config.min_intro_words_with_signals,
     )
 
-    logger.debug(f"Intro validation result: is_valid={result.is_valid}, reason={result.reason if not result.is_valid else 'N/A'}")
+    logger.debug(
+        "Intro validation result: is_valid=%s, reason=%s",
+        result.is_valid,
+        result.reason if not result.is_valid else "N/A",
+    )
 
     if not result.is_valid:
+        progress_hint = build_progress_hint(
+            word_count=result.word_count,
+            min_words=runtime.config.min_intro_words,
+        )
         await message.reply_text(
             (
-                f"Your intro is not complete yet. {result.reason}\n\n"
-                "Tip: use /example and include at least a short paragraph about who you are and what you do."
+                "⚠️ Intro not complete yet.\n"
+                f"{result.reason}\n"
+                f"{progress_hint}\n\n"
+                "Tip: use /example and include a short paragraph about who you are and what you do."
             )
         )
         return
 
-    logger.info(f"Accepting intro from user_id={user.id}")
+    logger.info("Accepting intro from user_id=%s", user.id)
     member = runtime.repo.mark_introduced(
         user_id=user.id,
         username=user.username,
@@ -85,7 +111,9 @@ async def handle_intro_message(update: Update, context: ContextTypes.DEFAULT_TYP
 
     user_label = display_name(user.username, user.first_name, user.id)
     if unlocked:
-        await message.reply_text("Intro accepted. You are now unlocked in the main group.")
+        await message.reply_text(
+            "🎉 Intro accepted! Welcome aboard — you now have full access to the main group."
+        )
         intro_link = build_intro_deeplink(
             runtime.config.intro_chat_id, runtime.config.intro_thread_id
         )
@@ -96,7 +124,7 @@ async def handle_intro_message(update: Update, context: ContextTypes.DEFAULT_TYP
         await context.bot.send_message(
             chat_id=runtime.config.main_group_id,
             text=(
-                f"{mention_html(user.id, user_label)} intro accepted in {intro_ref}. "
+                f"✅ {mention_html(user.id, user_label)} intro accepted in {intro_ref}. "
                 "Main-group access unlocked."
             ),
             parse_mode="HTML",
@@ -116,17 +144,28 @@ async def handle_main_group_message(update: Update, context: ContextTypes.DEFAUL
     if message is None or user is None or user.is_bot:
         return
 
-    if message.chat_id != runtime.config.main_group_id:
+    if message.chat_id not in runtime.config.protected_chat_ids:
         return
 
-    logger.debug(f"Message from user_id={user.id}, thread_id={message.message_thread_id}, intro_thread={runtime.config.intro_thread_id}")
+    logger.debug(
+        "Message from user_id=%s, chat_id=%s, thread_id=%s, intro_thread=%s",
+        user.id,
+        message.chat_id,
+        message.message_thread_id,
+        runtime.config.intro_thread_id,
+    )
 
-    if _is_intro_message(message.chat_id, message.message_thread_id, runtime):
-        logger.debug(f"Message is in intro topic, skipping")
+    if is_intro_message(
+        chat_id=message.chat_id,
+        message_thread_id=message.message_thread_id,
+        intro_chat_id=runtime.config.intro_chat_id,
+        intro_thread_id=runtime.config.intro_thread_id,
+    ):
+        logger.debug("Message is in intro topic, skipping")
         return
 
     admin_status = await is_admin(update, context, runtime)
-    logger.debug(f"User {user.id} is_admin={admin_status}")
+    logger.debug("User %s is_admin=%s", user.id, admin_status)
 
     if admin_status:
         member = runtime.repo.get_member(user.id)
@@ -149,21 +188,21 @@ async def handle_main_group_message(update: Update, context: ContextTypes.DEFAUL
             main_chat_id=runtime.config.main_group_id,
         )
 
-    logger.debug(f"User {user.id} is_introduced={member.is_introduced}")
+    logger.debug("User %s is_introduced=%s", user.id, member.is_introduced)
 
     if member.is_introduced:
         return
 
-    logger.info(f"Deleting message from pending user user_id={user.id}")
+    logger.info("Deleting message from pending user user_id=%s", user.id)
     try:
         await message.delete()
     except Forbidden:
         logger.warning("cannot delete message for pending user user_id=%s", user.id)
-        await _maybe_notify_delete_permission_issue(context, runtime.config.main_group_id)
+        await _maybe_notify_delete_permission_issue(context, message.chat_id)
     except TelegramError:
         logger.exception("failed to delete message for pending user user_id=%s", user.id)
 
-    if _should_remind(member.last_reminded_at, runtime.config.reminder_cooldown_minutes):
+    if should_remind(member.last_reminded_at, runtime.config.reminder_cooldown_minutes):
         await send_reminder_to_user(
             context=context,
             user_id=user.id,
@@ -171,6 +210,7 @@ async def handle_main_group_message(update: Update, context: ContextTypes.DEFAUL
             main_group_id=runtime.config.main_group_id,
             intro_chat_id=runtime.config.intro_chat_id,
             intro_thread_id=runtime.config.intro_thread_id,
+            notify_chat_id=message.chat_id,
         )
         runtime.repo.set_last_reminded(user.id)
 
@@ -229,17 +269,9 @@ async def ids_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     await message.reply_text(f"chat_id={chat.id}\nmessage_thread_id=<none>\nuser_id={user.id}")
 
 
-def _should_remind(last_reminded_at: datetime | None, cooldown_minutes: int) -> bool:
-    if last_reminded_at is None:
-        return True
-    now = datetime.now(timezone.utc)
-    elapsed_seconds = (now - last_reminded_at).total_seconds()
-    return elapsed_seconds >= cooldown_minutes * 60
-
-
 async def _maybe_notify_delete_permission_issue(
     context: ContextTypes.DEFAULT_TYPE,
-    main_group_id: int,
+    chat_id: int,
 ) -> None:
     now = datetime.now(timezone.utc)
     key = "delete_permission_warning_last_at"
@@ -251,21 +283,9 @@ async def _maybe_notify_delete_permission_issue(
 
     context.application.bot_data[key] = now
     await context.bot.send_message(
-        chat_id=main_group_id,
+        chat_id=chat_id,
         text=(
             "I cannot delete messages for pending users. "
             "Please grant me the \"Delete messages\" admin permission."
         ),
     )
-
-
-def _is_intro_message(
-    chat_id: int,
-    message_thread_id: int | None,
-    runtime,
-) -> bool:
-    if chat_id != runtime.config.intro_chat_id:
-        return False
-    if runtime.config.intro_thread_id is None:
-        return True
-    return message_thread_id == runtime.config.intro_thread_id

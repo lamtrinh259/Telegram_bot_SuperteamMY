@@ -51,11 +51,14 @@ class NotInIntroTopic(filters.MessageFilter):
         self.intro_thread_id = intro_thread_id
 
     def filter(self, message: Message) -> bool:  # noqa: D102
-        # If intro is not in a topic mode, all main group messages are non-intro
-        if self.intro_thread_id is None:
+        if message.chat_id != self.intro_chat_id:
             return True
 
-        # In topic mode, exclude messages from the intro topic
+        # If intro is not in topic mode, every message in the intro chat is intro.
+        if self.intro_thread_id is None:
+            return False
+
+        # In topic mode, exclude messages from the intro topic.
         return message.message_thread_id != self.intro_thread_id
 
 
@@ -157,8 +160,9 @@ def build_application(config: Config) -> Application:
 
     # Main group text handler MUST run before intro handler since both filters match in forum topics
     # Use custom filter to exclude intro topic messages
+    protected_chat_filters = _build_chat_filter(config.protected_chat_ids)
     main_group_text_filters = (
-        filters.Chat(config.main_group_id)
+        protected_chat_filters
         & ~filters.COMMAND
         & (filters.TEXT | filters.CAPTION)
         & NotInIntroTopic(config.intro_chat_id, config.intro_thread_id)
@@ -203,3 +207,13 @@ def _safe_update_repr(update: object) -> str:
         except Exception:
             return "<unserializable update>"
     return str(update)
+
+
+def _build_chat_filter(chat_ids: tuple[int, ...]) -> filters.BaseFilter:
+    result: filters.BaseFilter | None = None
+    for chat_id in chat_ids:
+        chat_filter = filters.Chat(chat_id)
+        result = chat_filter if result is None else (result | chat_filter)
+    if result is None:
+        raise ValueError("at least one protected chat ID is required")
+    return result
