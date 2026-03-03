@@ -63,8 +63,11 @@ async def send_reminder_to_user(
     main_group_id: int,
     intro_chat_id: int,
     intro_thread_id: int | None,
+    notify_chat_id: int | None = None,
+    notify_thread_id: int | None = None,
 ) -> None:
     reminder_text = build_reminder_text(intro_chat_id, intro_thread_id)
+    destination_chat_id = notify_chat_id or main_group_id
     dm_sent = False
     try:
         await context.bot.send_message(chat_id=user_id, text=reminder_text)
@@ -84,7 +87,8 @@ async def send_reminder_to_user(
         )
     )
     await context.bot.send_message(
-        chat_id=main_group_id,
+        chat_id=destination_chat_id,
+        message_thread_id=notify_thread_id,
         text=note,
         parse_mode="HTML",
         disable_web_page_preview=True,

@@ -25,6 +25,7 @@ from .handlers.intro import (
 )
 from .handlers.jobs import auto_reminder_job
 from .handlers.join import handle_new_members
+from .handlers.rate_limit import handle_rate_limit
 from .runtime import Runtime
 from .utils import UNMUTED_PERMISSIONS
 
@@ -51,11 +52,14 @@ class NotInIntroTopic(filters.MessageFilter):
         self.intro_thread_id = intro_thread_id
 
     def filter(self, message: Message) -> bool:  # noqa: D102
-        # If intro is not in a topic mode, all main group messages are non-intro
-        if self.intro_thread_id is None:
+        if message.chat_id != self.intro_chat_id:
             return True
 
-        # In topic mode, exclude messages from the intro topic
+        # If intro is not in topic mode, every message in the intro chat is intro.
+        if self.intro_thread_id is None:
+            return False
+
+        # In topic mode, exclude messages from the intro topic.
         return message.message_thread_id != self.intro_thread_id
 
 
@@ -128,8 +132,9 @@ def build_application(config: Config) -> Application:
                     await application.bot.send_message(
                         chat_id=runtime.config.main_group_id,
                         text=(
-                            "Warning: Bot privacy mode is ON. Topic-mode gating in General requires "
-                            "privacy mode OFF, otherwise non-command messages cannot be intercepted.\n\n"
+                            "Warning: Bot privacy mode is ON. Topic-mode gating in non-Intro topics "
+                            "requires privacy mode OFF, otherwise non-command messages cannot be "
+                            "intercepted.\n\n"
                             "Fix in BotFather: /setprivacy -> select this bot -> Disable, then restart bot."
                         ),
                     )
@@ -154,6 +159,13 @@ def build_application(config: Config) -> Application:
             handle_new_members,
         )
     )
+
+    rate_limit_filters = (
+        filters.Chat(config.main_group_id)
+        & ~filters.COMMAND
+        & (filters.TEXT | filters.CAPTION)
+    )
+    application.add_handler(MessageHandler(rate_limit_filters, handle_rate_limit), group=-1)
 
     # Main group text handler MUST run before intro handler since both filters match in forum topics
     # Use custom filter to exclude intro topic messages

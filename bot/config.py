@@ -29,6 +29,9 @@ class Config:
     min_intro_words_with_signals: int
     reminder_cooldown_minutes: int
     auto_reminder_hours: int
+    rate_limit_max_messages: int
+    rate_limit_window_seconds: int
+    rate_limit_mute_minutes: int
     log_level: str
 
     @property
@@ -68,5 +71,8 @@ class Config:
             min_intro_words_with_signals=int(os.getenv("MIN_INTRO_WORDS_WITH_SIGNALS", "12")),
             reminder_cooldown_minutes=int(os.getenv("REMINDER_COOLDOWN_MINUTES", "30")),
             auto_reminder_hours=int(os.getenv("AUTO_REMINDER_HOURS", "0")),
+            rate_limit_max_messages=int(os.getenv("RATE_LIMIT_MAX_MESSAGES", "5")),
+            rate_limit_window_seconds=int(os.getenv("RATE_LIMIT_WINDOW_SECONDS", "60")),
+            rate_limit_mute_minutes=int(os.getenv("RATE_LIMIT_MUTE_MINUTES", "30")),
             log_level=os.getenv("LOG_LEVEL", "INFO").upper(),
         )

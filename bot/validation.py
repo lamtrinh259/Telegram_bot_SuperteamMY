@@ -115,15 +115,29 @@ def validate_intro_text(
             word_count=word_count,
         )
 
-    # ---- length / signal checks ----
-    if word_count >= min_words:
-        return IntroValidationResult(is_valid=True, reason="Looks good.", word_count=word_count)
-
+    # ---- signal detection ----
     word_set = set(words)
     has_self_signal = bool(word_set.intersection(SELF_WORDS))
     has_role_signal = bool(word_set.intersection(ROLE_WORDS))
 
-    if word_count >= min_words_with_signals and has_self_signal and has_role_signal:
+    # A genuine self-introduction must reference yourself (I, my, me, etc.).
+    # This rejects copy-pasted bot output, diagnostics, and random text that
+    # may be long enough in word count but aren't actually about the user.
+    if not has_self_signal:
+        return IntroValidationResult(
+            is_valid=False,
+            reason=(
+                "Your message doesn't look like a self-introduction. "
+                "Please tell us about yourself — use \"I\", \"my\", etc."
+            ),
+            word_count=word_count,
+        )
+
+    # ---- length / signal checks ----
+    if word_count >= min_words:
+        return IntroValidationResult(is_valid=True, reason="Looks good.", word_count=word_count)
+
+    if word_count >= min_words_with_signals and has_role_signal:
         return IntroValidationResult(is_valid=True, reason="Looks good.", word_count=word_count)
 
     return IntroValidationResult(

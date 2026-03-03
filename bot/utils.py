@@ -101,9 +101,9 @@ def build_welcome_text(intro_chat_id: int, intro_thread_id: int | None) -> str:
     intro_link = build_intro_deeplink(intro_chat_id, intro_thread_id)
     if intro_link:
         return (
-            "Welcome to Superteam MY. You are temporarily limited in the main group until your intro is done.\n\n"
+            "👋 Welcome to Superteam MY. You are temporarily limited in the main group until your intro is done.\n\n"
             "Post your introduction in the Intro topic to unlock access.\n\n"
-            f"Open Intro directly: {intro_link}\n"
+            f"🔗 Open Intro directly: {intro_link}\n\n"
             "Please introduce yourself in Intro using this structure:\n\n"
             "1) Who are you & what do you do?\n"
             "2) Where are you based?\n"
@@ -114,7 +114,7 @@ def build_welcome_text(intro_chat_id: int, intro_thread_id: int | None) -> str:
 
     intro_location = format_intro_location(intro_chat_id, intro_thread_id)
     return (
-        "Welcome to Superteam MY. You are temporarily limited in the main group until your intro is done.\n\n"
+        "👋 Welcome to Superteam MY. You are temporarily limited in the main group until your intro is done.\n\n"
         f"Post your intro in {intro_location} to unlock access.\n\n"
         f"{INTRO_FORMAT_PROMPT}"
     )
@@ -124,9 +124,9 @@ def build_reminder_text(intro_chat_id: int, intro_thread_id: int | None) -> str:
     intro_link = build_intro_deeplink(intro_chat_id, intro_thread_id)
     if intro_link:
         return (
-            "Reminder: your main-group access is still locked.\n"
+            "🔒 Reminder: your main-group access is still locked.\n"
             "Please post your introduction in the Intro topic.\n\n"
-            f"Open Intro directly: {intro_link}\n"
+            f"🔗 Open Intro directly: {intro_link}\n\n"
             "Please introduce yourself in Intro using this structure:\n\n"
             "1) Who are you & what do you do?\n"
             "2) Where are you based?\n"
@@ -137,7 +137,7 @@ def build_reminder_text(intro_chat_id: int, intro_thread_id: int | None) -> str:
 
     intro_location = format_intro_location(intro_chat_id, intro_thread_id)
     return (
-        "Reminder: your main-group access is still locked.\n"
+        "🔒 Reminder: your main-group access is still locked.\n"
         f"Please post your intro in {intro_location}.\n\n"
         f"{INTRO_FORMAT_PROMPT}"
     )
