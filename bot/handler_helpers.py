@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from collections import deque
+from datetime import datetime, timedelta, timezone
 from typing import Callable
 
 
@@ -60,3 +61,16 @@ def resolve_target_user_id(
         return username_lookup(username)
 
     return None
+
+
+def record_message_and_check_limit(
+    history: deque[datetime],
+    now: datetime,
+    window_seconds: int,
+    max_messages: int,
+) -> bool:
+    cutoff = now - timedelta(seconds=window_seconds)
+    while history and history[0] <= cutoff:
+        history.popleft()
+    history.append(now)
+    return len(history) >= max_messages

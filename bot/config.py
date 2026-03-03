@@ -17,29 +17,10 @@ def _parse_admin_ids(value: str | None) -> set[int]:
     return ids
 
 
-def _parse_chat_ids(value: str | None) -> tuple[int, ...]:
-    if not value:
-        return tuple()
-
-    ids: list[int] = []
-    seen: set[int] = set()
-    for raw in value.split(","):
-        raw = raw.strip()
-        if not raw:
-            continue
-        chat_id = int(raw)
-        if chat_id in seen:
-            continue
-        ids.append(chat_id)
-        seen.add(chat_id)
-    return tuple(ids)
-
-
 @dataclass(frozen=True)
 class Config:
     bot_token: str
     main_group_id: int
-    protected_chat_ids: tuple[int, ...]
     intro_chat_id: int
     intro_thread_id: int | None
     database_path: Path
@@ -48,6 +29,9 @@ class Config:
     min_intro_words_with_signals: int
     reminder_cooldown_minutes: int
     auto_reminder_hours: int
+    rate_limit_max_messages: int
+    rate_limit_window_seconds: int
+    rate_limit_mute_minutes: int
     log_level: str
 
     @property
@@ -70,10 +54,6 @@ class Config:
 
         main_group_id = int(main_group)
         intro_chat_id = int(intro_chat)
-        parsed_protected_chat_ids = _parse_chat_ids(os.getenv("PROTECTED_CHAT_IDS"))
-        protected_chat_ids = (main_group_id, *tuple(
-            chat_id for chat_id in parsed_protected_chat_ids if chat_id != main_group_id
-        ))
 
         raw_intro_thread_id = os.getenv("INTRO_THREAD_ID", "").strip()
         intro_thread_id = int(raw_intro_thread_id) if raw_intro_thread_id else None
@@ -83,7 +63,6 @@ class Config:
         return cls(
             bot_token=token,
             main_group_id=main_group_id,
-            protected_chat_ids=protected_chat_ids,
             intro_chat_id=intro_chat_id,
             intro_thread_id=intro_thread_id,
             database_path=db_path,
@@ -92,5 +71,8 @@ class Config:
             min_intro_words_with_signals=int(os.getenv("MIN_INTRO_WORDS_WITH_SIGNALS", "12")),
             reminder_cooldown_minutes=int(os.getenv("REMINDER_COOLDOWN_MINUTES", "30")),
             auto_reminder_hours=int(os.getenv("AUTO_REMINDER_HOURS", "0")),
+            rate_limit_max_messages=int(os.getenv("RATE_LIMIT_MAX_MESSAGES", "5")),
+            rate_limit_window_seconds=int(os.getenv("RATE_LIMIT_WINDOW_SECONDS", "60")),
+            rate_limit_mute_minutes=int(os.getenv("RATE_LIMIT_MUTE_MINUTES", "30")),
             log_level=os.getenv("LOG_LEVEL", "INFO").upper(),
         )

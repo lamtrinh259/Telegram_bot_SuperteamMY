@@ -305,7 +305,8 @@ async def _privacy_warning_if_needed(
     if privacy_off:
         return None
     return (
-        "Note: Privacy mode is ON. In forum-topic mode, General gating needs privacy mode OFF "
+        "Note: Privacy mode is ON. In forum-topic mode, gating in non-Intro topics needs "
+        "privacy mode OFF "
         "(BotFather /setprivacy -> Disable), then restart the bot."
     )
 

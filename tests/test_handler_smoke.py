@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import unittest
+from collections import deque
 from datetime import datetime, timedelta, timezone
 
 from bot.handler_helpers import (
     build_progress_hint,
     is_intro_message,
+    record_message_and_check_limit,
     resolve_target_user_id,
     should_remind,
 )
@@ -60,6 +62,25 @@ class HandlerSmokeTests(unittest.TestCase):
         self.assertTrue(should_remind(old, cooldown_minutes=30))
 
         self.assertIn("Progress", build_progress_hint(word_count=8, min_words=20))
+
+    def test_record_message_and_check_limit(self) -> None:
+        now = datetime.now(timezone.utc)
+        history = deque(
+            [
+                now - timedelta(seconds=50),
+                now - timedelta(seconds=40),
+                now - timedelta(seconds=20),
+                now - timedelta(seconds=10),
+                now - timedelta(seconds=5),
+            ]
+        )
+        is_limited = record_message_and_check_limit(
+            history=history,
+            now=now,
+            window_seconds=60,
+            max_messages=5,
+        )
+        self.assertTrue(is_limited)
 
 
 if __name__ == "__main__":

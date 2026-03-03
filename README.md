@@ -5,12 +5,13 @@ Telegram bot for the **Build a Telegram Intro Gatekeeper Bot for Superteam** cha
 ## What It Does
 
 - Gates new members in the main group until they introduce themselves in the dedicated `#intro` channel/topic.
-- Enforces pending-user reminders in configured protected chats/topics (not only `Main`/`General`).
+- In forum-topic mode, enforces pending-user reminders in all topics except `Intro`.
 - Uses flexible NLP validation (not strict templates):
   - Accepts long-enough intros directly (>= `MIN_INTRO_WORDS`).
   - Accepts medium-length intros when self/role signals are present (>= `MIN_INTRO_WORDS_WITH_SIGNALS`).
   - Rejects copy-paste of the example intro using trigram-based similarity detection.
 - Supports DM onboarding, with automatic in-group fallback when DMs are blocked.
+- Built-in anti-spam rate limiting for non-admin members (default: 5 messages/60s -> 30-minute mute).
 - Handles key edge cases:
   - Rejoin behavior (already introduced users are not re-gated).
   - Persistence across bot restarts (SQLite).
@@ -35,6 +36,7 @@ bot/
     ├── join.py       # New member join handling, lock/unlock, reminders
     ├── intro.py      # Intro message validation, main-group gating
     ├── admin.py      # Admin commands (pending, approve, reject, etc.)
+    ├── rate_limit.py # Rate limiting + temporary mute/unmute jobs
     └── jobs.py       # Scheduled auto-reminder job
 main.py               # Entry point
 Dockerfile
@@ -65,20 +67,21 @@ Copy `.env.example` to `.env` and set values:
 | `MAIN_GROUP_ID` | Yes | — | Chat ID of the main group (e.g. `-100...`) |
 | `INTRO_CHAT_ID` | Yes | — | Chat ID where intros are posted |
 | `INTRO_THREAD_ID` | No | — | Topic ID if `#intro` is a forum topic |
-| `PROTECTED_CHAT_IDS` | No | — | Comma-separated extra chat IDs where pending-user messages are deleted/reminded (main group is always included) |
 | `ADMIN_USER_IDS` | No | — | Comma-separated Telegram user IDs |
 | `DATABASE_PATH` | No | `data/bot.sqlite3` | Path to SQLite database |
 | `MIN_INTRO_WORDS` | No | `20` | Min words for unconditional acceptance |
 | `MIN_INTRO_WORDS_WITH_SIGNALS` | No | `12` | Min words when self+role signals present |
 | `REMINDER_COOLDOWN_MINUTES` | No | `30` | Cooldown between reminder DMs per user |
 | `AUTO_REMINDER_HOURS` | No | `0` (disabled) | Interval for automatic batch reminders |
+| `RATE_LIMIT_MAX_MESSAGES` | No | `5` | Max messages allowed within rate-limit window |
+| `RATE_LIMIT_WINDOW_SECONDS` | No | `60` | Rate-limit sliding window size (seconds) |
+| `RATE_LIMIT_MUTE_MINUTES` | No | `30` | Temporary mute duration when limit is exceeded |
 | `LOG_LEVEL` | No | `INFO` | Logging level (DEBUG, INFO, WARNING, etc.) |
 
 ### Configuration Modes
 
 - **Separate intro chat:** Set `INTRO_CHAT_ID` to a different chat than `MAIN_GROUP_ID`. Leave `INTRO_THREAD_ID` empty. The bot mutes pending users in the main group.
 - **Forum topic mode:** Set `INTRO_CHAT_ID` = `MAIN_GROUP_ID` and set `INTRO_THREAD_ID` to the topic ID. The bot uses delete-and-remind enforcement (instead of global mute) so pending users can still post in the Intro topic.
-- **Extra enforcement chats (optional):** Set `PROTECTED_CHAT_IDS` to additional chat IDs where pending users should be reminded if they post before intro completion.
 
 ## Commands
 
@@ -129,7 +132,8 @@ The bot uses flexible NLP-style validation (no rigid templates):
 5. User posts intro in `#intro`.
 6. Bot validates intro text (length, signals, anti-copy-paste).
 7. On acceptance: marks user as "introduced", unlocks main-group access, posts announcement with clickable `#intro` link.
-8. If a pending user tries to post in any protected chat (outside Intro), the bot deletes the message and sends a cooldown-limited reminder.
+8. If a pending user tries to post outside Intro, the bot deletes the message and sends a cooldown-limited reminder.
+9. If a non-admin user exceeds the message rate limit outside Intro, the bot temporarily mutes them and auto-unmutes after the configured duration.
 
 ### Forum Topic Mode Details
 
@@ -191,7 +195,7 @@ They also cover database lifecycle behavior (join/introduce/rejoin/pending reset
 | Bot doesn't validate intros in Intro topic | Disable privacy mode in BotFather (`/setprivacy` -> Disable) and restart |
 | Bot can't delete messages | Grant the bot "Delete messages" admin permission |
 | Bot can't restrict members | Grant the bot "Restrict members" admin permission |
-| Pending users are not enforced in another chat | Add that chat ID to `PROTECTED_CHAT_IDS` and restart |
+| Users are muted too aggressively | Increase `RATE_LIMIT_MAX_MESSAGES` or `RATE_LIMIT_WINDOW_SECONDS` |
 | `/reject @username` targets wrong user | Ensure the user has sent at least one message so their username is in the database |
 | Admin is being gated | Add your user ID to `ADMIN_USER_IDS` in `.env` and restart |
 
@@ -213,6 +217,7 @@ Use `/ids` in any chat or topic to find the real `chat_id`, `message_thread_id`,
 - [ ] Valid original intro -> accepted, main-group access unlocked
 - [ ] Acceptance announcement shows clickable `#intro` link
 - [ ] Already-introduced user chats freely in `#intro` without validation prompts
-- [ ] Pending user's message in General is deleted with reminder
+- [ ] Pending user's message in General or other non-Intro topics is deleted with reminder
+- [ ] Rate limit triggers at configured threshold and auto-unmutes correctly
 - [ ] `/pending`, `/status`, `/approve`, `/reject`, `/reset`, `/diag` work correctly
 - [ ] Auto-reminders fire on schedule (if configured)
