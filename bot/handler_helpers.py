@@ -4,6 +4,11 @@ from collections import deque
 from datetime import datetime, timedelta, timezone
 from typing import Callable
 
+PENDING_SPAM_HISTORY_KEY = "pending_spam_history"
+PENDING_SPAM_MUTES_KEY = "pending_spam_mutes"
+RATE_LIMIT_HISTORY_KEY = "rate_limit_history"
+RATE_LIMIT_MUTES_KEY = "rate_limit_mutes"
+
 
 def is_intro_message(
     chat_id: int,
@@ -74,3 +79,30 @@ def record_message_and_check_limit(
         history.popleft()
     history.append(now)
     return len(history) >= max_messages
+
+
+def clear_user_runtime_state(
+    bot_data: dict[str, object],
+    job_queue: object | None,
+    user_id: int,
+) -> None:
+    # Clear per-user in-memory rate-limit / pending-spam state so /reset starts clean.
+    for key in (
+        PENDING_SPAM_HISTORY_KEY,
+        PENDING_SPAM_MUTES_KEY,
+        RATE_LIMIT_HISTORY_KEY,
+        RATE_LIMIT_MUTES_KEY,
+    ):
+        store = bot_data.get(key)
+        if isinstance(store, dict):
+            store.pop(user_id, None)
+
+    if job_queue is None:
+        return
+
+    for job_name in (f"pending_spam_unmute_{user_id}", f"rate_limit_unmute_{user_id}"):
+        jobs = getattr(job_queue, "get_jobs_by_name", lambda _name: [])(job_name)
+        for job in jobs:
+            schedule_removal = getattr(job, "schedule_removal", None)
+            if callable(schedule_removal):
+                schedule_removal()

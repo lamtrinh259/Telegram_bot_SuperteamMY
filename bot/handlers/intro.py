@@ -10,6 +10,8 @@ from telegram.ext import ContextTypes
 
 from ..auth import is_admin
 from ..handler_helpers import (
+    PENDING_SPAM_HISTORY_KEY,
+    PENDING_SPAM_MUTES_KEY,
     build_progress_hint,
     is_intro_message,
     record_message_and_check_limit,
@@ -28,9 +30,6 @@ from ..utils import (
 from .join import lock_member, send_reminder_to_user, unlock_member
 
 logger = logging.getLogger(__name__)
-
-PENDING_SPAM_HISTORY_KEY = "pending_spam_history"
-PENDING_SPAM_MUTES_KEY = "pending_spam_mutes"
 
 
 async def handle_intro_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

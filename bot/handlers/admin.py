@@ -1,5 +1,4 @@
 from __future__ import annotations
-
 from datetime import timezone
 
 from telegram import Update
@@ -7,7 +6,7 @@ from telegram.error import TelegramError
 from telegram.ext import ContextTypes
 
 from ..auth import is_admin
-from ..handler_helpers import resolve_target_user_id
+from ..handler_helpers import clear_user_runtime_state, resolve_target_user_id
 from ..runtime import get_runtime
 from ..utils import display_name
 from .join import lock_member, send_reminder_to_user, unlock_member
@@ -238,15 +237,37 @@ async def reset_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         main_chat_id=runtime.config.main_group_id,
     )
     runtime.repo.mark_pending(target_user_id)
+    clear_user_runtime_state(
+        bot_data=context.application.bot_data,
+        job_queue=context.application.job_queue,
+        user_id=target_user_id,
+    )
+
     if runtime.config.intro_is_topic_in_main:
-        await unlock_member(context, runtime.config.main_group_id, target_user_id)
+        restriction_ok = await unlock_member(context, runtime.config.main_group_id, target_user_id)
+        access_state = "unmuted"
     else:
-        await lock_member(context, runtime.config.main_group_id, target_user_id)
+        restriction_ok = await lock_member(context, runtime.config.main_group_id, target_user_id)
+        access_state = "muted"
 
     warning = await _privacy_warning_if_needed(context, runtime)
     suffix = f"\n\n{warning}" if warning else ""
+    if restriction_ok:
+        await message.reply_text(
+            (
+                f"Reset user_id={target_user_id} to pending, cleared intro/reminder state, "
+                f"and {access_state} user for onboarding flow.{suffix}"
+            )
+        )
+        return
+
     await message.reply_text(
-        f"Reset user_id={target_user_id} to pending and cleared intro/reminder state.{suffix}"
+        (
+            f"Reset user_id={target_user_id} to pending, but failed to update Telegram "
+            f"restriction state ({access_state}). Please verify the bot has Restrict Members "
+            "permission and the target user is not an admin/owner."
+            f"{suffix}"
+        )
     )
 
 

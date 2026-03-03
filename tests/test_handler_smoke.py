@@ -3,9 +3,15 @@ from __future__ import annotations
 import unittest
 from collections import deque
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 
 from bot.handler_helpers import (
+    PENDING_SPAM_HISTORY_KEY,
+    PENDING_SPAM_MUTES_KEY,
+    RATE_LIMIT_HISTORY_KEY,
+    RATE_LIMIT_MUTES_KEY,
     build_progress_hint,
+    clear_user_runtime_state,
     is_intro_message,
     record_message_and_check_limit,
     resolve_target_user_id,
@@ -81,6 +87,71 @@ class HandlerSmokeTests(unittest.TestCase):
             max_messages=5,
         )
         self.assertTrue(is_limited)
+
+    def test_clear_user_runtime_state(self) -> None:
+        user_id = 42
+        keep_user_id = 99
+        now = datetime.now(timezone.utc)
+
+        class FakeJob:
+            def __init__(self) -> None:
+                self.removed = False
+
+            def schedule_removal(self) -> None:
+                self.removed = True
+
+        pending_job = FakeJob()
+        rate_limit_job = FakeJob()
+
+        class FakeJobQueue:
+            def get_jobs_by_name(self, name: str):
+                mapping = {
+                    f"pending_spam_unmute_{user_id}": [pending_job],
+                    f"rate_limit_unmute_{user_id}": [rate_limit_job],
+                }
+                return mapping.get(name, [])
+
+        context = SimpleNamespace(
+            application=SimpleNamespace(
+                bot_data={
+                    PENDING_SPAM_HISTORY_KEY: {
+                        user_id: deque([now]),
+                        keep_user_id: deque([now]),
+                    },
+                    PENDING_SPAM_MUTES_KEY: {
+                        user_id: now + timedelta(minutes=30),
+                        keep_user_id: now + timedelta(minutes=5),
+                    },
+                    RATE_LIMIT_HISTORY_KEY: {
+                        user_id: deque([now]),
+                        keep_user_id: deque([now]),
+                    },
+                    RATE_LIMIT_MUTES_KEY: {
+                        user_id: now + timedelta(minutes=30),
+                        keep_user_id: now + timedelta(minutes=5),
+                    },
+                },
+                job_queue=FakeJobQueue(),
+            )
+        )
+
+        clear_user_runtime_state(
+            bot_data=context.application.bot_data,
+            job_queue=context.application.job_queue,
+            user_id=user_id,
+        )
+
+        for key in (
+            PENDING_SPAM_HISTORY_KEY,
+            PENDING_SPAM_MUTES_KEY,
+            RATE_LIMIT_HISTORY_KEY,
+            RATE_LIMIT_MUTES_KEY,
+        ):
+            self.assertNotIn(user_id, context.application.bot_data[key])
+            self.assertIn(keep_user_id, context.application.bot_data[key])
+
+        self.assertTrue(pending_job.removed)
+        self.assertTrue(rate_limit_job.removed)
 
 
 if __name__ == "__main__":
