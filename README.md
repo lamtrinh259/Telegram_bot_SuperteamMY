@@ -178,20 +178,60 @@ cp .env.example .env
 python main.py
 ```
 
-## Run With Docker
+## Run With Docker (Build From Scratch)
+
+Prerequisites:
+- Docker Engine / Docker Desktop installed
+- Docker Compose v2 (`docker compose`)
+
+### 1) Prepare environment
 
 ```bash
 cp .env.example .env
-# Edit .env with your values
-
-docker compose up --build -d
+# Edit .env with your real values (BOT_TOKEN, MAIN_GROUP_ID, INTRO_CHAT_ID, etc.)
+mkdir -p data
 ```
 
-View logs:
+### 2) Build image
+
+Use a clean build for first run:
 
 ```bash
-docker compose logs -f bot
+docker compose build --no-cache bot
 ```
+
+### 3) Start container
+
+```bash
+docker compose up -d bot
+```
+
+### 4) Verify it is running
+
+```bash
+docker compose ps
+docker compose logs -f --tail=100 bot
+```
+
+### 5) Stop / restart / update
+
+```bash
+# Restart only the bot service
+docker compose restart bot
+
+# Stop everything
+docker compose down
+
+# Rebuild after code changes, then start again
+docker compose build bot
+docker compose up -d bot
+```
+
+### 6) Data persistence
+
+- SQLite is stored at `./data/bot.sqlite3` on your host.
+- Because `docker-compose.yml` mounts `./data:/app/data`, member state survives container restarts/rebuilds.
+- To fully reset state for a fresh demo, stop the stack and remove `./data/bot.sqlite3`.
 
 ## Testing
 
@@ -214,6 +254,7 @@ Tests cover:
 | Bot doesn't validate intros in Intro topic | Disable privacy mode in BotFather (`/setprivacy` -> Disable) and restart |
 | Bot can't delete messages | Grant the bot "Delete messages" admin permission |
 | Bot can't restrict members | Grant the bot "Restrict members" admin permission |
+| Docker bot can't write SQLite (`permission denied` on `/app/data`) | Ensure host `data/` exists and is writable by container user (`uid 1000`), e.g. `sudo chown -R 1000:1000 data` on Linux |
 | Users are muted too aggressively | Increase `RATE_LIMIT_MAX_MESSAGES` or `RATE_LIMIT_WINDOW_SECONDS` |
 | Pending users are not muted in General | Ensure bot can read non-command messages (privacy mode OFF) and has `Restrict members` |
 | `/reject @username` targets wrong user | Ensure the user has sent at least one message so their username is in the database |
