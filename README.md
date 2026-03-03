@@ -100,11 +100,11 @@ Copy `.env.example` to `.env` and set values:
 | Command | Description |
 |---|---|
 | `/pending` | List all pending (un-introduced) members |
-| `/status [user_id]` | Show bot summary or per-user state |
-| `/remind [user_id]` | Send reminder to one user or all due users |
-| `/approve <user_id \| @username>` | Manually mark a user as introduced |
-| `/reject <user_id \| @username>` | Keep user gated and send them a reminder |
-| `/reset <user_id \| @username>` | Reset user to pending, clear intro/reminder state |
+| `/status [user_id]` | Show bot summary, or a specific member's state |
+| `/remind [user_id]` | Send reminder to one user immediately, or all users currently due |
+| `/approve <user_id \| @username>` | Mark user as introduced and unlock main-group access |
+| `/reject <user_id \| @username>` | Mark user pending, re-apply gate, and send reminder |
+| `/reset <user_id \| @username>` | Reset to pending + clear intro/reminder state, then re-apply gate (forum-topic mode: unmuted; separate-intro mode: muted) |
 | `/diag` | Show bot diagnostics (privacy mode, permissions) |
 
 Admin commands accept a numeric `user_id` or `@username`. You can also reply to a user's message and run the command without arguments.
