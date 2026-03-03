@@ -9,15 +9,17 @@ from telegram.error import Forbidden, TelegramError
 from telegram.ext import ContextTypes
 
 from ..auth import is_admin
-from ..handler_helpers import is_intro_message, record_message_and_check_limit
+from ..handler_helpers import (
+    RATE_LIMIT_HISTORY_KEY,
+    RATE_LIMIT_MUTES_KEY,
+    is_intro_message,
+    record_message_and_check_limit,
+)
 from ..runtime import get_runtime
 from ..utils import display_name, mention_html
 from .join import lock_member, unlock_member
 
 logger = logging.getLogger(__name__)
-
-RATE_LIMIT_HISTORY_KEY = "rate_limit_history"
-RATE_LIMIT_MUTES_KEY = "rate_limit_mutes"
 
 
 async def handle_rate_limit(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

@@ -106,7 +106,7 @@ Copy `.env.example` to `.env` and set values:
 | `/remind [user_id]` | Send reminder to one user immediately, or all users currently due |
 | `/approve <user_id \| @username>` | Mark user as introduced and unlock main-group access |
 | `/reject <user_id \| @username>` | Mark user pending, re-apply gate, and send reminder |
-| `/reset <user_id \| @username>` | Reset to pending + clear intro/reminder state, then re-apply gate (forum-topic mode: unmuted; separate-intro mode: muted) |
+| `/reset <user_id \| @username>` | Reset to pending + clear intro/reminder state and temporary mute/rate-limit runtime state, then re-apply gate (forum-topic mode: unmuted; separate-intro mode: muted) |
 | `/diag` | Show bot diagnostics (privacy mode, permissions) |
 
 Admin commands accept a numeric `user_id` or `@username`. You can also reply to a user's message and run the command without arguments.
